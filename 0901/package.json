@@ -1,0 +1,23 @@
+{
+  "name": "excavation-monitoring-system",
+  "version": "1.0.0",
+  "description": "深基坑监测传感器布置交互系统",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "type": "module",
+  "dependencies": {
+    "three": "^0.158.0",
+    "dat.gui": "^0.7.9",
+    "stats.js": "^0.17.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "keywords": ["three.js", "基坑监测", "传感器", "GB50497-2019"],
+  "author": "Your Name",
+  "license": "MIT"
+}

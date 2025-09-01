@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深基坑监测传感器布置系统 - GB50497-2019</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 320px;
+            max-width: 400px;
+            z-index: 1000;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 300px;
+            z-index: 1000;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .control-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .control-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <!-- 控制面板 -->
+        <div id="ui-panel">
+            <div class="panel-title">基坑监测系统控制台</div>
+            
+            <div class="control-group">
+                <label class="control-label">基坑类型</label>
+                <select id="pit-type" class="control-input">
+                    <option value="soil">土质基坑</option>
+                    <option value="rock">岩体基坑</option>
+                    <option value="soil-rock">土岩组合基坑</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">安全等级</label>
+                <select id="safety-level" class="control-input">
+                    <option value="1">一级</option>
+                    <option value="2">二级</option>
+                    <option value="3">三级</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑深度 (m)</label>
+                <input type="number" id="pit-depth" class="control-input" value="10" min="1" max="50">
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑长度 (m)</label>
+                <input type="number" id="pit-length" class="control-input" value="30" min="10" max="100">
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑宽度 (m)</label>
+                <input type="number" id="pit-width" class="control-input" value="20" min="10" max="100">
+            </div>
+
+            <div class="control-group">
+                <button id="generate-pit" class="btn btn-primary">生成基坑模型</button>
+                <button id="reset-view" class="btn btn-secondary">重置视角</button>
+            </div>
+        </div>
+
+        <!-- 信息面板 -->
+        <div id="info-panel">
+            <div class="panel-title">系统信息</div>
+            <div>THREE.js 版本: <span id="three-version">加载中...</span></div>
+            <div>WebGL 支持: <span id="webgl-support">检测中...</span></div>
+            <div>基坑状态: <span id="pit-status">未生成</span></div>
+        </div>
+
+        <div id="status">正在初始化...</div>
+    </div>
+
+    <!-- 使用CDN加载THREE.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        class SimpleExcavationApp {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.excavationGroup = new THREE.Group();
+                
+                this.init();
+                this.setupEventListeners();
+                this.animate();
+            }
+
+            init() {
+                console.log('开始初始化应用...');
+                document.getElementById('status').textContent = '正在初始化THREE.js...';
+                
+                // 显示THREE.js版本
+                document.getElementById('three-version').textContent = THREE.REVISION;
+                
+                // 检查WebGL支持
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                document.getElementById('webgl-support').textContent = gl ? '✅ 支持' : '❌ 不支持';
+                
+                if (!gl) {
+                    document.getElementById('status').textContent = '错误：浏览器不支持WebGL';
+                    return;
+                }
+
+                // 创建场景
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87CEEB);
+                this.scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+                // 创建相机
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(50, 30, 50);
+
+                // 创建渲染器
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                
+                const container = document.getElementById('canvas-container');
+                container.appendChild(this.renderer.domElement);
+
+                // 创建控制器
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.maxPolarAngle = Math.PI / 2;
+
+                // 添加光照
+                this.setupLighting();
+
+                // 创建地面
+                this.createGround();
+
+                // 添加基坑组到场景
+                this.scene.add(this.excavationGroup);
+
+                // 生成默认基坑
+                this.generateExcavation();
+
+                document.getElementById('status').textContent = '初始化完成 - 系统就绪';
+                console.log('应用初始化完成');
+            }
+
+            setupLighting() {
+                // 环境光
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+                this.scene.add(ambientLight);
+
+                // 主光源
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(50, 50, 25);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 500;
+                directionalLight.shadow.camera.left = -50;
+                directionalLight.shadow.camera.right = 50;
+                directionalLight.shadow.camera.top = 50;
+                directionalLight.shadow.camera.bottom = -50;
+                this.scene.add(directionalLight);
+
+                // 辅助光源
+                const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.3);
+                this.scene.add(hemisphereLight);
+            }
+
+            createGround() {
+                // 创建地面
+                const groundGeometry = new THREE.PlaneGeometry(200, 200);
+                const groundMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x90EE90,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = 0;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // 添加网格
+                const gridHelper = new THREE.GridHelper(200, 20, 0x888888, 0xAAAAAA);
+                gridHelper.position.y = 0.01;
+                this.scene.add(gridHelper);
+            }
+
+            generateExcavation() {
+                console.log('开始生成基坑模型...');
+                document.getElementById('status').textContent = '正在生成基坑模型...';
+                
+                // 清除现有基坑
+                this.excavationGroup.clear();
+
+                const pitType = document.getElementById('pit-type').value;
+                const safetyLevel = parseInt(document.getElementById('safety-level').value);
+                const depth = parseFloat(document.getElementById('pit-depth').value);
+                const length = parseFloat(document.getElementById('pit-length').value);
+                const width = parseFloat(document.getElementById('pit-width').value);
+
+                console.log('基坑参数:', { pitType, safetyLevel, depth, length, width });
+
+                // 创建基坑
+                this.createExcavationModel(length, width, depth, pitType);
+
+                // 更新状态
+                document.getElementById('pit-status').textContent = `已生成 (${pitType}, ${safetyLevel}级, ${length}x${width}x${depth}m)`;
+                document.getElementById('status').textContent = '基坑模型生成完成';
+                
+                // 重置视角
+                this.resetView();
+                
+                console.log('基坑模型生成完成');
+            }
+
+            createExcavationModel(length, width, depth, type) {
+                // 创建围护墙
+                const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+                const wallThickness = 0.8;
+                const wallHeight = depth + 2;
+                
+                // 四面围护墙
+                const walls = [
+                    { pos: [length/2 + wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                    { pos: [-length/2 - wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                    { pos: [0, wallHeight/2 - 1, width/2 + wallThickness/2], size: [length, wallHeight, wallThickness] },
+                    { pos: [0, wallHeight/2 - 1, -width/2 - wallThickness/2], size: [length, wallHeight, wallThickness] }
+                ];
+
+                walls.forEach((wall, index) => {
+                    const geometry = new THREE.BoxGeometry(...wall.size);
+                    const mesh = new THREE.Mesh(geometry, wallMaterial);
+                    mesh.position.set(...wall.pos);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    this.excavationGroup.add(mesh);
+                });
+
+                // 根据类型创建地质结构
+                let soilMaterial, rockMaterial;
+                
+                switch (type) {
+                    case 'soil':
+                        soilMaterial = new THREE.MeshLambertMaterial({ 
+                            color: 0x8B4513,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        this.createSoilLayers(length, width, depth, soilMaterial);
+                        break;
+                        
+                    case 'rock':
+                        rockMaterial = new THREE.MeshLambertMaterial({ 
+                            color: 0x696969,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        this.createRockLayer(length, width, depth, rockMaterial);
+                        break;
+                        
+                    case 'soil-rock':
+                        soilMaterial = new THREE.MeshLambertMaterial({ 
+                            color: 0x8B4513,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        rockMaterial = new THREE.MeshLambertMaterial({ 
+                            color: 0x696969,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        this.createSoilRockLayers(length, width, depth, soilMaterial, rockMaterial);
+                        break;
+                }
+
+                // 创建支撑系统
+                this.createSupports(length, width, depth);
+            }
+
+            createSoilLayers(length, width, depth, material) {
+                const soilGeometry = new THREE.BoxGeometry(length + 10, depth, width + 10);
+                const soilMesh = new THREE.Mesh(soilGeometry, material);
+                soilMesh.position.set(0, -depth/2, 0);
+                soilMesh.receiveShadow = true;
+                this.excavationGroup.add(soilMesh);
+            }
+
+            createRockLayer(length, width, depth, material) {
+                const rockGeometry = new THREE.BoxGeometry(length + 10, depth, width + 10);
+                const rockMesh = new THREE.Mesh(rockGeometry, material);
+                rockMesh.position.set(0, -depth/2, 0);
+                rockMesh.receiveShadow = true;
+                this.excavationGroup.add(rockMesh);
+            }
+
+            createSoilRockLayers(length, width, depth, soilMaterial, rockMaterial) {
+                // 上部土层
+                const soilHeight = depth * 0.6;
+                const soilGeometry = new THREE.BoxGeometry(length + 10, soilHeight, width + 10);
+                const soilMesh = new THREE.Mesh(soilGeometry, soilMaterial);
+                soilMesh.position.set(0, -soilHeight/2, 0);
+                soilMesh.receiveShadow = true;
+                this.excavationGroup.add(soilMesh);
+
+                // 下部岩层
+                const rockHeight = depth * 0.4;
+                const rockGeometry = new THREE.BoxGeometry(length + 10, rockHeight, width + 10);
+                const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
+                rockMesh.position.set(0, -soilHeight - rockHeight/2, 0);
+                rockMesh.receiveShadow = true;
+                this.excavationGroup.add(rockMesh);
+            }
+
+            createSupports(length, width, depth) {
+                const supportMaterial = new THREE.MeshPhongMaterial({ color: 0x4169E1 });
+                const supportRadius = 0.3;
+                
+                // 创建支撑
+                const supportGeometry = new THREE.CylinderGeometry(supportRadius, supportRadius, length - 4);
+                const support1 = new THREE.Mesh(supportGeometry, supportMaterial);
+                support1.position.set(0, -depth/3, 0);
+                support1.rotation.z = Math.PI / 2;
+                support1.castShadow = true;
+                this.excavationGroup.add(support1);
+
+                const support2 = new THREE.Mesh(supportGeometry, supportMaterial);
+                support2.position.set(0, -2*depth/3, 0);
+                support2.rotation.z = Math.PI / 2;
+                support2.castShadow = true;
+                this.excavationGroup.add(support2);
+            }
+
+            resetView() {
+                const length = parseFloat(document.getElementById('pit-length').value);
+                const width = parseFloat(document.getElementById('pit-width').value);
+                const maxDim = Math.max(length, width);
+                
+                this.camera.position.set(maxDim * 0.8, maxDim * 0.6, maxDim * 0.8);
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+            }
+
+            setupEventListeners() {
+                // 窗口大小调整
+                window.addEventListener('resize', () => this.onWindowResize());
+
+                // UI控制事件
+                document.getElementById('generate-pit').addEventListener('click', () => this.generateExcavation());
+                document.getElementById('reset-view').addEventListener('click', () => this.resetView());
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // 等待DOM加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM加载完成，开始初始化应用...');
+            window.app = new SimpleExcavationApp();
+        });
+    </script>
+</body>
+</html>

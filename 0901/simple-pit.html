@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简化版基坑模型</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #222;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+            max-width: 300px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        
+        button {
+            margin: 5px;
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button.danger {
+            background: #f44336;
+        }
+        
+        button.danger:hover {
+            background: #da190b;
+        }
+        
+        select, input {
+            margin: 5px;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        
+        #status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        
+        .sensor-item {
+            background: rgba(255,255,255,0.1);
+            margin: 2px 0;
+            padding: 5px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sensor-item button {
+            padding: 2px 8px;
+            font-size: 12px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>深基坑监测系统</h3>
+        <div>状态: <span id="three-status">加载中...</span></div>
+        <div>WebGL: <span id="webgl-status">检测中...</span></div>
+        <div>基坑: <span id="pit-status">未生成</span></div>
+        <div>传感器: <span id="sensor-count">0 个</span></div>
+        
+        <h4>传感器列表</h4>
+        <div id="sensor-list" style="max-height: 150px; overflow-y: auto;">
+            暂无传感器
+        </div>
+    </div>
+    
+    <div id="controls">
+        <h4>基坑参数</h4>
+        <div>
+            <label>类型:</label>
+            <select id="pit-type">
+                <option value="soil">土质基坑</option>
+                <option value="rock">岩体基坑</option>
+                <option value="soil-rock">土岩组合基坑</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>等级:</label>
+            <select id="safety-level">
+                <option value="1">一级</option>
+                <option value="2" selected>二级</option>
+                <option value="3">三级</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>长度:</label>
+            <input type="number" id="pit-length" value="30" min="10" max="100" style="width: 60px;">m
+        </div>
+        
+        <div>
+            <label>宽度:</label>
+            <input type="number" id="pit-width" value="20" min="10" max="100" style="width: 60px;">m
+        </div>
+        
+        <div>
+            <label>深度:</label>
+            <input type="number" id="pit-depth" value="10" min="1" max="50" style="width: 60px;">m
+        </div>
+        
+        <button onclick="generatePit()">生成基坑</button>
+        <button onclick="resetCamera()">重置视角</button>
+        
+        <h4>传感器</h4>
+        <div>
+            <select id="sensor-type">
+                <option value="horizontal">水平位移</option>
+                <option value="vertical">竖向位移</option>
+                <option value="deep">深层位移</option>
+                <option value="support">支撑轴力</option>
+                <option value="anchor">锚杆轴力</option>
+                <option value="water">地下水位</option>
+                <option value="settlement">地表沉降</option>
+            </select>
+        </div>
+        
+        <button id="place-btn" onclick="togglePlacement()">开始布置</button>
+        <button class="danger" onclick="clearSensors()">清除全部</button>
+    </div>
+    
+    <div id="status">正在加载THREE.js...</div>
+
+    <!-- 直接内联THREE.js代码，避免加载问题 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    
+    <script>
+        // 全局变量
+        let scene, camera, renderer, controls;
+        let excavationGroup, sensorGroup;
+        let sensors = [];
+        let interactableObjects = [];
+        let placingMode = false;
+        let raycaster, mouse;
+
+        // 等待THREE.js加载
+        function waitForThree() {
+            if (typeof THREE !== 'undefined') {
+                document.getElementById('three-status').textContent = '✅ THREE.js v' + THREE.REVISION;
+                console.log('THREE.js loaded successfully');
+                checkWebGL();
+            } else {
+                console.log('Waiting for THREE.js...');
+                setTimeout(waitForThree, 100);
+            }
+        }
+
+        function checkWebGL() {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            
+            if (gl) {
+                document.getElementById('webgl-status').textContent = '✅ 支持';
+                document.getElementById('status').textContent = '正在初始化3D场景...';
+                initThreeJS();
+            } else {
+                document.getElementById('webgl-status').textContent = '❌ 不支持';
+                document.getElementById('status').textContent = '错误：浏览器不支持WebGL';
+            }
+        }
+
+        function initThreeJS() {
+            try {
+                console.log('开始初始化THREE.js...');
+                
+                // 创建场景
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x87CEEB);
+                console.log('✓ 场景创建完成');
+
+                // 创建相机
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(40, 25, 40);
+                console.log('✓ 相机创建完成');
+
+                // 创建渲染器
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(renderer.domElement);
+                console.log('✓ 渲染器创建完成');
+
+                // 创建简单的轨道控制（手动实现）
+                setupSimpleControls();
+
+                // 创建组
+                excavationGroup = new THREE.Group();
+                sensorGroup = new THREE.Group();
+                scene.add(excavationGroup);
+                scene.add(sensorGroup);
+
+                // 射线检测
+                raycaster = new THREE.Raycaster();
+                mouse = new THREE.Vector2();
+
+                // 添加光照
+                addLighting();
+
+                // 创建地面
+                createGround();
+
+                // 生成默认基坑
+                generatePit();
+
+                // 开始渲染
+                animate();
+
+                document.getElementById('status').textContent = '✅ 系统就绪 - 基坑模型已生成';
+                console.log('✓ 初始化完成');
+
+            } catch (error) {
+                console.error('初始化失败:', error);
+                document.getElementById('status').textContent = '❌ 初始化失败: ' + error.message;
+            }
+        }
+
+        function setupSimpleControls() {
+            let mouseDown = false;
+            let mouseX = 0, mouseY = 0;
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                mouseDown = true;
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                mouseDown = false;
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!mouseDown) return;
+
+                const deltaX = e.clientX - mouseX;
+                const deltaY = e.clientY - mouseY;
+
+                // 简单的相机旋转
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(camera.position);
+                spherical.theta -= deltaX * 0.01;
+                spherical.phi += deltaY * 0.01;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+                camera.position.setFromSpherical(spherical);
+                camera.lookAt(0, 0, 0);
+
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            // 滚轮缩放
+            renderer.domElement.addEventListener('wheel', (e) => {
+                const scale = e.deltaY > 0 ? 1.1 : 0.9;
+                camera.position.multiplyScalar(scale);
+                e.preventDefault();
+            });
+
+            console.log('✓ 简单控制器设置完成');
+        }
+
+        function addLighting() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            // 方向光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(50, 50, 25);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            scene.add(directionalLight);
+
+            console.log('✓ 光照添加完成');
+        }
+
+        function createGround() {
+            // 地面
+            const groundGeometry = new THREE.PlaneGeometry(200, 200);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 网格
+            const gridHelper = new THREE.GridHelper(100, 20, 0x888888, 0xAAAAAA);
+            scene.add(gridHelper);
+
+            console.log('✓ 地面创建完成');
+        }
+
+        function generatePit() {
+            console.log('开始生成基坑...');
+            document.getElementById('status').textContent = '正在生成基坑模型...';
+            
+            // 清空现有模型
+            excavationGroup.clear();
+            interactableObjects = [];
+
+            const length = parseFloat(document.getElementById('pit-length').value);
+            const width = parseFloat(document.getElementById('pit-width').value);
+            const depth = parseFloat(document.getElementById('pit-depth').value);
+            const type = document.getElementById('pit-type').value;
+
+            console.log('基坑参数:', { length, width, depth, type });
+
+            try {
+                // 创建围护墙
+                createWalls(length, width, depth);
+                
+                // 创建土体
+                createSoil(length, width, depth, type);
+                
+                // 创建支撑
+                createSupports(length, width, depth);
+
+                // 更新状态
+                const level = document.getElementById('safety-level').value;
+                document.getElementById('pit-status').textContent = `${type} ${level}级 ${length}×${width}×${depth}m`;
+                document.getElementById('status').textContent = '✅ 基坑模型生成完成';
+                
+                console.log('✓ 基坑生成完成');
+
+            } catch (error) {
+                console.error('基坑生成失败:', error);
+                document.getElementById('status').textContent = '❌ 生成失败: ' + error.message;
+            }
+        }
+
+        function createWalls(length, width, depth) {
+            const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+            const thickness = 0.8;
+            const height = depth + 2;
+            
+            // 四面墙
+            const wallPositions = [
+                [length/2 + thickness/2, height/2 - 1, 0, thickness, height, width + thickness*2],
+                [-length/2 - thickness/2, height/2 - 1, 0, thickness, height, width + thickness*2],
+                [0, height/2 - 1, width/2 + thickness/2, length, height, thickness],
+                [0, height/2 - 1, -width/2 - thickness/2, length, height, thickness]
+            ];
+
+            wallPositions.forEach((pos, i) => {
+                const geometry = new THREE.BoxGeometry(pos[3], pos[4], pos[5]);
+                const wall = new THREE.Mesh(geometry, wallMaterial);
+                wall.position.set(pos[0], pos[1], pos[2]);
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                wall.userData = { type: 'wall', id: i };
+                excavationGroup.add(wall);
+                interactableObjects.push(wall);
+            });
+
+            console.log('✓ 围护墙创建完成');
+        }
+
+        function createSoil(length, width, depth, type) {
+            if (type === 'soil') {
+                // 土层
+                const soilMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x8B4513, 
+                    transparent: true, 
+                    opacity: 0.7 
+                });
+                const soilGeometry = new THREE.BoxGeometry(length + 8, depth, width + 8);
+                const soil = new THREE.Mesh(soilGeometry, soilMaterial);
+                soil.position.set(0, -depth/2, 0);
+                soil.receiveShadow = true;
+                excavationGroup.add(soil);
+                
+            } else if (type === 'rock') {
+                // 岩层
+                const rockMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x696969, 
+                    transparent: true, 
+                    opacity: 0.8 
+                });
+                const rockGeometry = new THREE.BoxGeometry(length + 8, depth, width + 8);
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                rock.position.set(0, -depth/2, 0);
+                rock.receiveShadow = true;
+                excavationGroup.add(rock);
+                
+            } else if (type === 'soil-rock') {
+                // 上土下岩
+                const soilHeight = depth * 0.6;
+                const rockHeight = depth * 0.4;
+                
+                const soilMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x8B4513, 
+                    transparent: true, 
+                    opacity: 0.6 
+                });
+                const soilGeometry = new THREE.BoxGeometry(length + 8, soilHeight, width + 8);
+                const soil = new THREE.Mesh(soilGeometry, soilMaterial);
+                soil.position.set(0, -soilHeight/2, 0);
+                soil.receiveShadow = true;
+                excavationGroup.add(soil);
+                
+                const rockMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x696969, 
+                    transparent: true, 
+                    opacity: 0.8 
+                });
+                const rockGeometry = new THREE.BoxGeometry(length + 8, rockHeight, width + 8);
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                rock.position.set(0, -soilHeight - rockHeight/2, 0);
+                rock.receiveShadow = true;
+                excavationGroup.add(rock);
+            }
+
+            console.log('✓ 地质结构创建完成');
+        }
+
+        function createSupports(length, width, depth) {
+            const supportMaterial = new THREE.MeshPhongMaterial({ color: 0x4169E1 });
+            
+            // 水平支撑
+            if (length > 15) {
+                const supportGeometry = new THREE.CylinderGeometry(0.3, 0.3, length - 4);
+                const support = new THREE.Mesh(supportGeometry, supportMaterial);
+                support.position.set(0, -depth/2, 0);
+                support.rotation.z = Math.PI / 2;
+                support.castShadow = true;
+                support.userData = { type: 'support' };
+                excavationGroup.add(support);
+                interactableObjects.push(support);
+            }
+
+            // 立柱
+            const columnGeometry = new THREE.CylinderGeometry(0.4, 0.4, depth + 2);
+            const column = new THREE.Mesh(columnGeometry, supportMaterial);
+            column.position.set(0, -depth/2, 0);
+            column.castShadow = true;
+            column.userData = { type: 'column' };
+            excavationGroup.add(column);
+            interactableObjects.push(column);
+
+            console.log('✓ 支撑系统创建完成');
+        }
+
+        // 传感器功能
+        function togglePlacement() {
+            placingMode = !placingMode;
+            const btn = document.getElementById('place-btn');
+            
+            if (placingMode) {
+                btn.textContent = '退出布置';
+                btn.style.background = '#f44336';
+                renderer.domElement.style.cursor = 'crosshair';
+                document.getElementById('status').textContent = '点击模型布置传感器';
+            } else {
+                btn.textContent = '开始布置';
+                btn.style.background = '#4CAF50';
+                renderer.domElement.style.cursor = 'default';
+                document.getElementById('status').textContent = '系统就绪';
+            }
+        }
+
+        function placeSensor(position, type) {
+            const colors = {
+                horizontal: 0xFF0000,
+                vertical: 0x00FF00,
+                deep: 0x0000FF,
+                support: 0xFFFF00,
+                anchor: 0xFF00FF,
+                water: 0x00FFFF,
+                settlement: 0xFFA500
+            };
+
+            const geometry = new THREE.SphereGeometry(0.8, 12, 8);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: colors[type] || 0xFF0000,
+                emissive: colors[type] || 0xFF0000,
+                emissiveIntensity: 0.2
+            });
+            
+            const sensor = new THREE.Mesh(geometry, material);
+            sensor.position.copy(position);
+            sensor.castShadow = true;
+            sensor.userData = { type: type, id: sensors.length };
+
+            sensorGroup.add(sensor);
+            sensors.push({ mesh: sensor, type: type, id: sensors.length });
+            
+            updateSensorList();
+        }
+
+        function clearSensors() {
+            sensors.forEach(sensor => sensorGroup.remove(sensor.mesh));
+            sensors = [];
+            updateSensorList();
+        }
+
+        function removeSensor(id) {
+            const index = sensors.findIndex(s => s.id === id);
+            if (index >= 0) {
+                sensorGroup.remove(sensors[index].mesh);
+                sensors.splice(index, 1);
+                updateSensorList();
+            }
+        }
+
+        function updateSensorList() {
+            document.getElementById('sensor-count').textContent = sensors.length + ' 个';
+            
+            const list = document.getElementById('sensor-list');
+            if (sensors.length === 0) {
+                list.innerHTML = '暂无传感器';
+                return;
+            }
+
+            const typeNames = {
+                horizontal: '水平位移',
+                vertical: '竖向位移',
+                deep: '深层位移',
+                support: '支撑轴力',
+                anchor: '锚杆轴力',
+                water: '地下水位',
+                settlement: '地表沉降'
+            };
+
+            list.innerHTML = sensors.map(sensor => `
+                <div class="sensor-item">
+                    <span>${typeNames[sensor.type]}</span>
+                    <button onclick="removeSensor(${sensor.id})">删除</button>
+                </div>
+            `).join('');
+        }
+
+        // 鼠标点击事件
+        function onMouseClick(event) {
+            if (!placingMode) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactableObjects);
+
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                const type = document.getElementById('sensor-type').value;
+                placeSensor(point, type);
+                document.getElementById('status').textContent = `传感器布置成功！已布置 ${sensors.length} 个`;
+            }
+        }
+
+        function resetCamera() {
+            camera.position.set(40, 25, 40);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 传感器动画
+            sensors.forEach((sensor, index) => {
+                sensor.mesh.rotation.y += 0.02;
+                const scale = 1 + Math.sin(Date.now() * 0.003 + index) * 0.1;
+                sensor.mesh.scale.setScalar(scale);
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        // 事件监听
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 鼠标点击事件
+        document.addEventListener('click', onMouseClick);
+
+        // 开始加载
+        console.log('开始检查THREE.js加载状态...');
+        waitForThree();
+    </script>
+</body>
+</html>

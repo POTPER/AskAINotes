@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基坑模型测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-family: Arial;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>基坑模型测试</h3>
+        <p>状态: <span id="status">初始化中...</span></p>
+    </div>
+    
+    <div id="controls">
+        <button onclick="generatePit()">生成基坑</button>
+        <button onclick="resetCamera()">重置视角</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+
+        function init() {
+            console.log('开始初始化...');
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(50, 30, 50);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            document.body.appendChild(renderer.domElement);
+            
+            // 创建控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(50, 50, 25);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // 创建地面
+            const groundGeometry = new THREE.PlaneGeometry(200, 200);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // 添加网格
+            const gridHelper = new THREE.GridHelper(200, 20, 0x888888, 0xAAAAAA);
+            gridHelper.position.y = 0.01;
+            scene.add(gridHelper);
+            
+            // 创建一个简单的基坑
+            createSimplePit();
+            
+            document.getElementById('status').textContent = '初始化完成';
+            console.log('初始化完成');
+            
+            animate();
+        }
+        
+        function createSimplePit() {
+            console.log('创建简单基坑...');
+            
+            // 基坑参数
+            const length = 30;
+            const width = 20;
+            const depth = 10;
+            
+            // 创建围护墙
+            const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+            const wallThickness = 0.8;
+            const wallHeight = depth + 2;
+            
+            // 四面围护墙
+            const walls = [
+                { pos: [length/2 + wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                { pos: [-length/2 - wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                { pos: [0, wallHeight/2 - 1, width/2 + wallThickness/2], size: [length, wallHeight, wallThickness] },
+                { pos: [0, wallHeight/2 - 1, -width/2 - wallThickness/2], size: [length, wallHeight, wallThickness] }
+            ];
+
+            walls.forEach((wall, index) => {
+                const geometry = new THREE.BoxGeometry(...wall.size);
+                const mesh = new THREE.Mesh(geometry, wallMaterial);
+                mesh.position.set(...wall.pos);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+            });
+            
+            // 创建土体
+            const soilMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x8B4513,
+                transparent: true,
+                opacity: 0.6
+            });
+            
+            const soilGeometry = new THREE.BoxGeometry(length + 10, depth, width + 10);
+            const soilMesh = new THREE.Mesh(soilGeometry, soilMaterial);
+            soilMesh.position.set(0, -depth/2, 0);
+            soilMesh.receiveShadow = true;
+            scene.add(soilMesh);
+            
+            console.log('基坑创建完成');
+            document.getElementById('status').textContent = '基坑模型已生成';
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // 全局函数
+        window.generatePit = function() {
+            console.log('重新生成基坑...');
+            createSimplePit();
+        };
+        
+        window.resetCamera = function() {
+            camera.position.set(50, 30, 50);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        };
+        
+        // 窗口大小调整
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // 开始初始化
+        init();
+    </script>
+</body>
+</html>
+

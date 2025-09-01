@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深基坑监测传感器布置系统 - GB50497-2019</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 320px;
+            max-width: 400px;
+            z-index: 1000;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 300px;
+            z-index: 1000;
+        }
+
+        #validation-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 400px;
+            z-index: 1000;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .control-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .control-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .sensor-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .sensor-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .validation-result {
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .validation-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .validation-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .validation-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            z-index: 1001;
+        }
+
+        .sensor-sphere {
+            cursor: pointer;
+        }
+
+        .sensor-sphere:hover {
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <!-- 控制面板 -->
+        <div id="ui-panel">
+            <div class="panel-title">基坑监测系统控制台</div>
+            
+            <div class="control-group">
+                <label class="control-label">基坑类型</label>
+                <select id="pit-type" class="control-input">
+                    <option value="soil">土质基坑</option>
+                    <option value="rock">岩体基坑</option>
+                    <option value="soil-rock">土岩组合基坑</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">安全等级</label>
+                <select id="safety-level" class="control-input">
+                    <option value="1">一级</option>
+                    <option value="2">二级</option>
+                    <option value="3">三级</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑深度 (m)</label>
+                <input type="number" id="pit-depth" class="control-input" value="10" min="1" max="50">
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑长度 (m)</label>
+                <input type="number" id="pit-length" class="control-input" value="30" min="10" max="100">
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">基坑宽度 (m)</label>
+                <input type="number" id="pit-width" class="control-input" value="20" min="10" max="100">
+            </div>
+
+            <div class="control-group">
+                <button id="generate-pit" class="btn btn-primary">生成基坑模型</button>
+                <button id="reset-view" class="btn btn-secondary">重置视角</button>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">传感器类型</div>
+                <select id="sensor-type" class="control-input">
+                    <option value="horizontal-displacement">围护墙顶部水平位移</option>
+                    <option value="vertical-displacement">围护墙顶部竖向位移</option>
+                    <option value="deep-horizontal">深层水平位移</option>
+                    <option value="support-force">支撑轴力</option>
+                    <option value="anchor-force">锚杆轴力</option>
+                    <option value="water-level">地下水位</option>
+                    <option value="ground-settlement">周边地表竖向位移</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <button id="place-sensor" class="btn btn-primary">布置传感器模式</button>
+                <button id="clear-sensors" class="btn btn-danger">清除所有传感器</button>
+            </div>
+        </div>
+
+        <!-- 信息面板 -->
+        <div id="info-panel">
+            <div class="panel-title">传感器信息</div>
+            <div>THREE.js 版本: <span id="three-version">加载中...</span></div>
+            <div>WebGL 支持: <span id="webgl-support">检测中...</span></div>
+            <div id="sensor-count">已布置传感器: 0 个</div>
+            <div class="sensor-list" id="sensor-list">
+                <div class="loading">暂无传感器</div>
+            </div>
+        </div>
+
+        <!-- 验证结果面板 -->
+        <div id="validation-panel">
+            <div class="panel-title">GB50497-2019 规范验证</div>
+            <button id="validate-layout" class="btn btn-primary">验证传感器布置</button>
+            <div id="validation-results">
+                <div class="loading">点击验证按钮检查传感器布置是否符合规范要求</div>
+            </div>
+        </div>
+
+        <div id="status">正在加载THREE.js...</div>
+    </div>
+
+    <!-- 直接从CDN加载THREE.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // 全局应用对象
+        let app = null;
+
+        // 等待THREE.js加载完成
+        function waitForThree() {
+            if (typeof THREE !== 'undefined') {
+                console.log('THREE.js 加载完成');
+                document.getElementById('three-version').textContent = THREE.REVISION;
+                
+                // 检查WebGL支持
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                document.getElementById('webgl-support').textContent = gl ? '✅ 支持' : '❌ 不支持';
+                
+                if (gl) {
+                    initApp();
+                } else {
+                    document.getElementById('status').textContent = '错误：浏览器不支持WebGL';
+                }
+            } else {
+                setTimeout(waitForThree, 100);
+            }
+        }
+
+        // 基坑监测应用类
+        class ExcavationMonitoringApp {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.excavationGroup = new THREE.Group();
+                this.sensorGroup = new THREE.Group();
+                this.sensors = [];
+                this.interactableObjects = [];
+                this.placingSensor = false;
+                this.currentSensorType = 'horizontal-displacement';
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                
+                this.init();
+                this.setupEventListeners();
+                this.animate();
+            }
+
+            init() {
+                console.log('开始初始化应用...');
+                document.getElementById('status').textContent = '正在初始化THREE.js...';
+
+                // 创建场景
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87CEEB);
+                this.scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+                // 创建相机
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(50, 30, 50);
+
+                // 创建渲染器
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                
+                const container = document.getElementById('canvas-container');
+                container.appendChild(this.renderer.domElement);
+
+                // 创建控制器
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.maxPolarAngle = Math.PI / 2;
+
+                // 添加光照
+                this.setupLighting();
+
+                // 创建地面
+                this.createGround();
+
+                // 添加组到场景
+                this.scene.add(this.excavationGroup);
+                this.scene.add(this.sensorGroup);
+
+                // 生成默认基坑
+                this.generateExcavation();
+
+                document.getElementById('status').textContent = '系统就绪 - 可以开始布置传感器';
+                console.log('应用初始化完成');
+            }
+
+            setupLighting() {
+                // 环境光
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+                this.scene.add(ambientLight);
+
+                // 主光源
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(50, 50, 25);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 500;
+                directionalLight.shadow.camera.left = -50;
+                directionalLight.shadow.camera.right = 50;
+                directionalLight.shadow.camera.top = 50;
+                directionalLight.shadow.camera.bottom = -50;
+                this.scene.add(directionalLight);
+
+                // 辅助光源
+                const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.3);
+                this.scene.add(hemisphereLight);
+            }
+
+            createGround() {
+                // 创建地面
+                const groundGeometry = new THREE.PlaneGeometry(200, 200);
+                const groundMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x90EE90,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = 0;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // 添加网格
+                const gridHelper = new THREE.GridHelper(200, 20, 0x888888, 0xAAAAAA);
+                gridHelper.position.y = 0.01;
+                this.scene.add(gridHelper);
+            }
+
+            generateExcavation() {
+                console.log('开始生成基坑模型...');
+                document.getElementById('status').textContent = '正在生成基坑模型...';
+                
+                // 清除现有基坑
+                this.excavationGroup.clear();
+                this.interactableObjects = [];
+
+                const pitType = document.getElementById('pit-type').value;
+                const safetyLevel = parseInt(document.getElementById('safety-level').value);
+                const depth = parseFloat(document.getElementById('pit-depth').value);
+                const length = parseFloat(document.getElementById('pit-length').value);
+                const width = parseFloat(document.getElementById('pit-width').value);
+
+                console.log('基坑参数:', { pitType, safetyLevel, depth, length, width });
+
+                // 创建基坑
+                this.createExcavationModel(length, width, depth, pitType);
+
+                document.getElementById('status').textContent = `基坑模型生成完成 - ${pitType} (${safetyLevel}级, ${length}x${width}x${depth}m)`;
+                
+                // 重置视角
+                this.resetView();
+                
+                console.log('基坑模型生成完成');
+            }
+
+            createExcavationModel(length, width, depth, type) {
+                // 创建围护墙
+                const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+                const wallThickness = 0.8;
+                const wallHeight = depth + 2;
+                
+                // 四面围护墙
+                const walls = [
+                    { pos: [length/2 + wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                    { pos: [-length/2 - wallThickness/2, wallHeight/2 - 1, 0], size: [wallThickness, wallHeight, width] },
+                    { pos: [0, wallHeight/2 - 1, width/2 + wallThickness/2], size: [length, wallHeight, wallThickness] },
+                    { pos: [0, wallHeight/2 - 1, -width/2 - wallThickness/2], size: [length, wallHeight, wallThickness] }
+                ];
+
+                walls.forEach((wall, index) => {
+                    const geometry = new THREE.BoxGeometry(...wall.size);
+                    const mesh = new THREE.Mesh(geometry, wallMaterial);
+                    mesh.position.set(...wall.pos);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    mesh.userData = { type: 'retaining-wall', id: index };
+                    this.excavationGroup.add(mesh);
+                    this.interactableObjects.push(mesh);
+                });
+
+                // 根据类型创建地质结构
+                this.createGeologyStructure(length, width, depth, type);
+
+                // 创建支撑系统
+                this.createSupports(length, width, depth);
+
+                // 创建冠梁
+                this.createCrownBeam(length, width);
+            }
+
+            createGeologyStructure(length, width, depth, type) {
+                switch (type) {
+                    case 'soil':
+                        this.createSoilLayers(length, width, depth);
+                        break;
+                    case 'rock':
+                        this.createRockLayer(length, width, depth);
+                        break;
+                    case 'soil-rock':
+                        this.createSoilRockLayers(length, width, depth);
+                        break;
+                }
+            }
+
+            createSoilLayers(length, width, depth) {
+                const layers = [
+                    { height: depth * 0.3, color: 0xD2691E, name: '填土层' },
+                    { height: depth * 0.4, color: 0xCD853F, name: '粘土层' },
+                    { height: depth * 0.3, color: 0x8B4513, name: '砂土层' }
+                ];
+
+                let currentY = 0;
+                layers.forEach((layer, index) => {
+                    const geometry = new THREE.BoxGeometry(length + 10, layer.height, width + 10);
+                    const material = new THREE.MeshLambertMaterial({ 
+                        color: layer.color,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(0, currentY - layer.height/2, 0);
+                    mesh.receiveShadow = true;
+                    mesh.userData = { type: 'soil-layer', name: layer.name };
+                    
+                    this.excavationGroup.add(mesh);
+                    currentY -= layer.height;
+                });
+            }
+
+            createRockLayer(length, width, depth) {
+                const geometry = new THREE.BoxGeometry(length + 10, depth, width + 10);
+                const material = new THREE.MeshLambertMaterial({ 
+                    color: 0x696969,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(0, -depth/2, 0);
+                mesh.receiveShadow = true;
+                mesh.userData = { type: 'rock-layer', name: '岩体' };
+                
+                this.excavationGroup.add(mesh);
+            }
+
+            createSoilRockLayers(length, width, depth) {
+                // 上部土层
+                const soilHeight = depth * 0.6;
+                const soilGeometry = new THREE.BoxGeometry(length + 10, soilHeight, width + 10);
+                const soilMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x8B4513,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const soilMesh = new THREE.Mesh(soilGeometry, soilMaterial);
+                soilMesh.position.set(0, -soilHeight/2, 0);
+                soilMesh.receiveShadow = true;
+                soilMesh.userData = { type: 'soil-layer', name: '土层' };
+                this.excavationGroup.add(soilMesh);
+
+                // 下部岩层
+                const rockHeight = depth * 0.4;
+                const rockGeometry = new THREE.BoxGeometry(length + 10, rockHeight, width + 10);
+                const rockMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x696969,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
+                rockMesh.position.set(0, -soilHeight - rockHeight/2, 0);
+                rockMesh.receiveShadow = true;
+                rockMesh.userData = { type: 'rock-layer', name: '岩层' };
+                this.excavationGroup.add(rockMesh);
+            }
+
+            createSupports(length, width, depth) {
+                const supportMaterial = new THREE.MeshPhongMaterial({ color: 0x4169E1 });
+                const supportRadius = 0.3;
+                
+                // 创建水平支撑
+                if (length > 15 || width > 15) {
+                    const supportGeometry = new THREE.CylinderGeometry(supportRadius, supportRadius, length - 4);
+                    const support1 = new THREE.Mesh(supportGeometry, supportMaterial);
+                    support1.position.set(0, -depth/3, 0);
+                    support1.rotation.z = Math.PI / 2;
+                    support1.castShadow = true;
+                    support1.userData = { type: 'support', level: 0 };
+                    this.excavationGroup.add(support1);
+                    this.interactableObjects.push(support1);
+
+                    if (depth > 8) {
+                        const support2 = new THREE.Mesh(supportGeometry, supportMaterial);
+                        support2.position.set(0, -2*depth/3, 0);
+                        support2.rotation.z = Math.PI / 2;
+                        support2.castShadow = true;
+                        support2.userData = { type: 'support', level: 1 };
+                        this.excavationGroup.add(support2);
+                        this.interactableObjects.push(support2);
+                    }
+                }
+
+                // 创建立柱
+                const columnRadius = 0.4;
+                const columnGeometry = new THREE.CylinderGeometry(columnRadius, columnRadius, depth + 2);
+                const columnMesh = new THREE.Mesh(columnGeometry, supportMaterial);
+                columnMesh.position.set(0, -depth/2, 0);
+                columnMesh.castShadow = true;
+                columnMesh.userData = { type: 'column', id: 0 };
+                this.excavationGroup.add(columnMesh);
+                this.interactableObjects.push(columnMesh);
+            }
+
+            createCrownBeam(length, width) {
+                const beamMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+                const beamSize = 0.6;
+                
+                const beamPositions = [
+                    [length/2 + 0.4, 1 + beamSize/2, 0, length + 0.8, beamSize, beamSize],
+                    [-length/2 - 0.4, 1 + beamSize/2, 0, length + 0.8, beamSize, beamSize],
+                    [0, 1 + beamSize/2, width/2 + 0.4, beamSize, beamSize, width + 0.8],
+                    [0, 1 + beamSize/2, -width/2 - 0.4, beamSize, beamSize, width + 0.8]
+                ];
+
+                beamPositions.forEach((pos, index) => {
+                    const geometry = new THREE.BoxGeometry(pos[3], pos[4], pos[5]);
+                    const mesh = new THREE.Mesh(geometry, beamMaterial);
+                    mesh.position.set(pos[0], pos[1], pos[2]);
+                    mesh.castShadow = true;
+                    mesh.userData = { type: 'crown-beam', id: index };
+                    
+                    this.excavationGroup.add(mesh);
+                    this.interactableObjects.push(mesh);
+                });
+            }
+
+            // 传感器相关方法
+            placeSensor(type, position) {
+                const sensorColors = {
+                    'horizontal-displacement': 0xFF0000,
+                    'vertical-displacement': 0x00FF00,
+                    'deep-horizontal': 0x0000FF,
+                    'support-force': 0xFFFF00,
+                    'anchor-force': 0xFF00FF,
+                    'water-level': 0x00FFFF,
+                    'ground-settlement': 0xFFA500
+                };
+
+                const sensorGeometry = new THREE.SphereGeometry(0.5, 8, 6);
+                const sensorMaterial = new THREE.MeshPhongMaterial({ 
+                    color: sensorColors[type] || 0xFF0000,
+                    emissive: sensorColors[type] || 0xFF0000,
+                    emissiveIntensity: 0.2
+                });
+                
+                const sensor = new THREE.Mesh(sensorGeometry, sensorMaterial);
+                sensor.position.copy(position);
+                sensor.castShadow = true;
+                sensor.userData = { 
+                    type: type, 
+                    position: position.clone(),
+                    timestamp: Date.now()
+                };
+
+                this.sensorGroup.add(sensor);
+                this.sensors.push({
+                    type: type,
+                    position: position.clone(),
+                    mesh: sensor,
+                    id: this.sensors.length
+                });
+
+                this.updateSensorList();
+                return true;
+            }
+
+            clearAllSensors() {
+                this.sensors.forEach(sensor => {
+                    this.sensorGroup.remove(sensor.mesh);
+                });
+                this.sensors = [];
+                this.updateSensorList();
+            }
+
+            removeSensor(index) {
+                if (index >= 0 && index < this.sensors.length) {
+                    const sensor = this.sensors[index];
+                    this.sensorGroup.remove(sensor.mesh);
+                    this.sensors.splice(index, 1);
+                    
+                    // 更新剩余传感器的ID
+                    this.sensors.forEach((s, i) => s.id = i);
+                    this.updateSensorList();
+                }
+            }
+
+            updateSensorList() {
+                const sensorCount = document.getElementById('sensor-count');
+                const sensorList = document.getElementById('sensor-list');
+
+                sensorCount.textContent = `已布置传感器: ${this.sensors.length} 个`;
+
+                if (this.sensors.length === 0) {
+                    sensorList.innerHTML = '<div class="loading">暂无传感器</div>';
+                    return;
+                }
+
+                const sensorTypeNames = {
+                    'horizontal-displacement': '围护墙顶部水平位移',
+                    'vertical-displacement': '围护墙顶部竖向位移',
+                    'deep-horizontal': '深层水平位移',
+                    'support-force': '支撑轴力',
+                    'anchor-force': '锚杆轴力',
+                    'water-level': '地下水位',
+                    'ground-settlement': '周边地表竖向位移'
+                };
+
+                sensorList.innerHTML = this.sensors.map((sensor, index) => `
+                    <div class="sensor-item">
+                        <span>${sensorTypeNames[sensor.type] || sensor.type}</span>
+                        <button onclick="app.removeSensor(${index})" class="btn btn-danger" style="padding: 2px 8px; font-size: 12px;">删除</button>
+                    </div>
+                `).join('');
+            }
+
+            // 验证传感器布置
+            validateSensorLayout() {
+                const pitType = document.getElementById('pit-type').value;
+                const safetyLevel = parseInt(document.getElementById('safety-level').value);
+                const depth = parseFloat(document.getElementById('pit-depth').value);
+                const length = parseFloat(document.getElementById('pit-length').value);
+                const width = parseFloat(document.getElementById('pit-width').value);
+
+                const config = { type: pitType, safetyLevel, dimensions: { length, width, depth } };
+                const results = this.performValidation(config, this.sensors);
+                this.displayValidationResults(results);
+            }
+
+            performValidation(config, sensors) {
+                // 简化的验证逻辑
+                const results = {
+                    isValid: true,
+                    errors: [],
+                    warnings: [],
+                    suggestions: []
+                };
+
+                const sensorTypes = sensors.map(s => s.type);
+                const sensorCounts = {};
+                sensorTypes.forEach(type => {
+                    sensorCounts[type] = (sensorCounts[type] || 0) + 1;
+                });
+
+                // 根据GB50497-2019标准检查必测项目
+                const requiredSensors = this.getRequiredSensors(config.type, config.safetyLevel);
+                
+                requiredSensors.forEach(required => {
+                    if (!sensorCounts[required]) {
+                        results.errors.push(`缺少必测项目：${this.getSensorTypeName(required)}`);
+                        results.isValid = false;
+                    }
+                });
+
+                // 检查传感器数量
+                if (sensors.length < 8) {
+                    results.warnings.push('传感器总数量偏少，建议增加监测点');
+                }
+
+                // 检查布置位置
+                const wallSensors = sensors.filter(s => 
+                    s.type === 'horizontal-displacement' || s.type === 'vertical-displacement'
+                );
+                
+                if (wallSensors.length < 8) {
+                    results.warnings.push('围护墙位移监测点数量不足，建议每边至少布置3个');
+                }
+
+                if (results.errors.length === 0 && results.warnings.length === 0) {
+                    results.suggestions.push('传感器布置基本合理，符合规范要求');
+                }
+
+                return results;
+            }
+
+            getRequiredSensors(type, safetyLevel) {
+                const requirements = {
+                    soil: {
+                        1: ['horizontal-displacement', 'vertical-displacement', 'deep-horizontal', 'support-force', 'water-level', 'ground-settlement'],
+                        2: ['horizontal-displacement', 'vertical-displacement', 'deep-horizontal', 'support-force', 'water-level', 'ground-settlement'],
+                        3: ['horizontal-displacement', 'vertical-displacement', 'water-level']
+                    },
+                    rock: {
+                        1: ['horizontal-displacement', 'vertical-displacement', 'anchor-force', 'ground-settlement'],
+                        2: ['horizontal-displacement', 'ground-settlement'],
+                        3: ['horizontal-displacement']
+                    },
+                    'soil-rock': {
+                        1: ['horizontal-displacement', 'vertical-displacement', 'deep-horizontal', 'support-force', 'anchor-force', 'water-level', 'ground-settlement'],
+                        2: ['horizontal-displacement', 'vertical-displacement', 'deep-horizontal', 'support-force', 'water-level', 'ground-settlement'],
+                        3: ['horizontal-displacement', 'vertical-displacement', 'water-level']
+                    }
+                };
+
+                return requirements[type] ? requirements[type][safetyLevel] || [] : [];
+            }
+
+            getSensorTypeName(type) {
+                const names = {
+                    'horizontal-displacement': '围护墙顶部水平位移',
+                    'vertical-displacement': '围护墙顶部竖向位移',
+                    'deep-horizontal': '深层水平位移',
+                    'support-force': '支撑轴力',
+                    'anchor-force': '锚杆轴力',
+                    'water-level': '地下水位',
+                    'ground-settlement': '周边地表竖向位移'
+                };
+                return names[type] || type;
+            }
+
+            displayValidationResults(results) {
+                const container = document.getElementById('validation-results');
+                
+                if (results.isValid && results.warnings.length === 0) {
+                    container.innerHTML = `
+                        <div class="validation-result validation-success">
+                            <h4>✅ 验证通过</h4>
+                            <p>传感器布置符合 GB50497-2019 标准要求</p>
+                        </div>
+                    `;
+                } else {
+                    let html = '';
+                    
+                    if (results.errors.length > 0) {
+                        html += `
+                            <div class="validation-result validation-error">
+                                <h4>❌ 不符合规范要求</h4>
+                                <ul>
+                                    ${results.errors.map(error => `<li>${error}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    if (results.warnings.length > 0) {
+                        html += `
+                            <div class="validation-result validation-warning">
+                                <h4>⚠️ 建议改进</h4>
+                                <ul>
+                                    ${results.warnings.map(warning => `<li>${warning}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+
+                    if (results.suggestions.length > 0) {
+                        html += `
+                            <div class="validation-result validation-success">
+                                <h4>💡 建议</h4>
+                                <ul>
+                                    ${results.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    container.innerHTML = html;
+                }
+            }
+
+            // 事件处理
+            setupEventListeners() {
+                // 窗口大小调整
+                window.addEventListener('resize', () => this.onWindowResize());
+
+                // 鼠标事件
+                this.renderer.domElement.addEventListener('click', (event) => this.onMouseClick(event));
+                this.renderer.domElement.addEventListener('mousemove', (event) => this.onMouseMove(event));
+
+                // UI控制事件
+                document.getElementById('generate-pit').addEventListener('click', () => this.generateExcavation());
+                document.getElementById('reset-view').addEventListener('click', () => this.resetView());
+                document.getElementById('place-sensor').addEventListener('click', () => this.toggleSensorPlacement());
+                document.getElementById('clear-sensors').addEventListener('click', () => this.clearAllSensors());
+                document.getElementById('validate-layout').addEventListener('click', () => this.validateSensorLayout());
+                
+                // 传感器类型选择
+                document.getElementById('sensor-type').addEventListener('change', (e) => {
+                    this.currentSensorType = e.target.value;
+                });
+            }
+
+            toggleSensorPlacement() {
+                this.placingSensor = !this.placingSensor;
+                const button = document.getElementById('place-sensor');
+                
+                if (this.placingSensor) {
+                    button.textContent = '退出布置模式';
+                    button.classList.remove('btn-primary');
+                    button.classList.add('btn-danger');
+                    this.renderer.domElement.style.cursor = 'crosshair';
+                    document.getElementById('status').textContent = '传感器布置模式 - 点击模型放置传感器';
+                } else {
+                    button.textContent = '布置传感器模式';
+                    button.classList.remove('btn-danger');
+                    button.classList.add('btn-primary');
+                    this.renderer.domElement.style.cursor = 'default';
+                    document.getElementById('status').textContent = '系统就绪';
+                }
+            }
+
+            onMouseClick(event) {
+                if (!this.placingSensor) return;
+
+                this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                
+                const intersects = this.raycaster.intersectObjects(this.interactableObjects);
+                
+                if (intersects.length > 0) {
+                    const point = intersects[0].point;
+                    this.placeSensor(this.currentSensorType, point);
+                    document.getElementById('status').textContent = `传感器布置成功 - 已布置 ${this.sensors.length} 个`;
+                }
+            }
+
+            onMouseMove(event) {
+                if (!this.placingSensor) return;
+
+                this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                
+                const intersects = this.raycaster.intersectObjects(this.interactableObjects);
+                
+                if (intersects.length > 0) {
+                    this.renderer.domElement.style.cursor = 'crosshair';
+                } else {
+                    this.renderer.domElement.style.cursor = 'not-allowed';
+                }
+            }
+
+            resetView() {
+                const length = parseFloat(document.getElementById('pit-length').value);
+                const width = parseFloat(document.getElementById('pit-width').value);
+                const maxDim = Math.max(length, width);
+                
+                this.camera.position.set(maxDim * 0.8, maxDim * 0.6, maxDim * 0.8);
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                this.controls.update();
+                
+                // 传感器动画效果
+                this.sensors.forEach((sensor, index) => {
+                    if (sensor.mesh) {
+                        sensor.mesh.rotation.y += 0.01;
+                        const scale = 1 + Math.sin(Date.now() * 0.003 + index) * 0.1;
+                        sensor.mesh.scale.setScalar(scale);
+                    }
+                });
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // 初始化应用
+        function initApp() {
+            console.log('开始初始化基坑监测应用...');
+            app = new ExcavationMonitoringApp();
+            window.app = app; // 供HTML按钮调用
+        }
+
+        // 开始加载
+        waitForThree();
+    </script>
+</body>
+</html>
